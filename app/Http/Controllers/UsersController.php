@@ -32,11 +32,11 @@ class UsersController extends Controller
         return response()->json($user, 200);
     }
 
-    
+
 
        public function update(UpdateUserRequest $request, User $user)
 {
-    $user->update($request->validated());
+    $users->update($request->validated());
 
     return response()->json([
         'message' => 'User updated successfully',
