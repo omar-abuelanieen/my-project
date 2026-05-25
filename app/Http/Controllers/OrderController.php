@@ -1,56 +1,68 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Models\Product;
+
 use App\Models\Order;
+use App\Services\OrderService;
 use Illuminate\Http\Request;
+use App\Http\Requests\StoreOrderRequest;
+use App\Http\Requests\UpdateOrderRequest;
 
 class OrderController extends Controller
 {
     public function index()
     {
-        return response()->json(Order::all(), 200);
+        return response()->json(
+            Order::with(['user', 'products'])->get()
+        );
     }
 
-    public function store(Request $request)
-    {
-        $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'total_price' => 'required|numeric',
-        ]);
+    public function store( StoreOrderRequest $request,OrderService $service ) {
 
         $order = Order::create([
-            'product_id' => $request->product_id,
-            'total_price' => $request->total_price,
+            'user_id' => $request->user_id,
+            'total_price' => 0,
+        ]);
+
+        $data = $service->prepareProducts(
+            $request->products
+        );
+
+        $order->products()->attach(
+            $data['products']
+        );
+
+        $order->update([
+            'total_price' => $data['total']
         ]);
 
         return response()->json([
-            'message' => 'Order created successfully',
-            'data' => $order
+            'message' => 'created',
+            'data' => $order->load([
+                'user',
+                'products'
+            ])
         ], 201);
     }
 
     public function show(Order $order)
     {
-        return response()->json($order, 200);
+        return response()->json($order);
     }
 
-    public function update(Request $request, Order $order)
-    {
-        $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'total_price' => 'required|numeric',
-        ]);
+    public function update(UpdateOrderRequest $request,Order $order, OrderService $service) {
 
-        $order->update([
-            'product_id' => $request->product_id,
-            'total_price' => $request->total_price,
-        ]);
+        $data = $service->prepareProducts($request->products);
+
+        $order->update([ 'user_id' => $request->user_id,'total_price' => $data['total']]);
+
+        $order->products()->sync(
+            $data['products']
+        );
 
         return response()->json([
-            'message' => 'Order updated successfully',
-            'data' => $order
-        ], 200);
+            'message' => 'updated'
+        ]);
     }
 
     public function destroy(Order $order)
@@ -58,7 +70,19 @@ class OrderController extends Controller
         $order->delete();
 
         return response()->json([
-            'message' => 'Order deleted successfully'
-        ], 200);
+            'message' => 'deleted succsefully'
+        ]);
+    }
+    public function trashed(){
+        $orders =Order::onlyTrashed()->get();
+        return response()->json($orders);
+    }
+    public function restore(Order $orders){
+        $orders->restore();
+        return response()->json(['message' => 'Product restored successfully','data'=>$orders],200);
+    }
+    public function forceDelete(Order $orders){
+        $orders->forceDelete();
+        return response()->json(['message' =>'order deleted permanently'],200);
     }
 }
